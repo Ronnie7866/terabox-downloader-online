@@ -12,9 +12,9 @@ terabox:
   # Array of cookies - Add your cookies here
   cookies:
     - "ndus=YzAY0L9peHuiooD2HIQfRKqdMaQ6ZiK1lw1-RGs4"
-    - "ndus=YdAZ0L9peHuipVO_a0gjom0pwVPAx27DYL-hryog"
-    - "ndus=Yfpi0B9peHuiKia5r7FlRJPoaaF9N9Syuaw-ikqa"
-    - "ndus=YyYm0B9peHuiBrHdNsFrn6AtTd4We26B6tNtVWCv"
+#    - "ndus=YdAZ0L9peHuipVO_a0gjom0pwVPAx27DYL-hryog"
+#    - "ndus=Yfpi0B9peHuiKia5r7FlRJPoaaF9N9Syuaw-ikqa"
+#    - "ndus=YyYm0B9peHuiBrHdNsFrn6AtTd4We26B6tNtVWCv"
   
   # HTTP Client Configuration
   http:

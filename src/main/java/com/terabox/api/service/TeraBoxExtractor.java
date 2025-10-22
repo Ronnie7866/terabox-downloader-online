@@ -80,22 +80,57 @@ public class TeraBoxExtractor {
     }
     
     /**
-     * Get redirected URL by following HTTP redirects
+     * Get redirected URL by checking Location header from HTTP redirect response
+     * Uses full cookie string to match browser behavior
      */
     private String getRedirectedUrl(String url) {
         try {
+            // Get a random cookie from the pool
+            String cookie = cookieManager.getRandomCookie();
+
             Request request = new Request.Builder()
                     .url(url)
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+                    .header("Cookie", cookie)
+                    .header("cache-control", "max-age=0")
+                    .header("sec-ch-ua", "\"Google Chrome\";v=\"141\", \"Not?A_Brand\";v=\"8\", \"Chromium\";v=\"141\"")
+                    .header("sec-ch-ua-mobile", "?0")
+                    .header("sec-ch-ua-platform", "\"Windows\"")
+                    .header("upgrade-insecure-requests", "1")
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+                    .header("sec-fetch-site", "none")
+                    .header("sec-fetch-mode", "navigate")
+                    .header("sec-fetch-user", "?1")
+                    .header("sec-fetch-dest", "document")
+                    .header("accept-encoding", "gzip, deflate, br, zstd")
+                    .header("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+                    .header("priority", "u=0, i")
                     .build();
-            
-            try (Response response = httpClient.newCall(request).execute()) {
-                // OkHttp automatically follows redirects, so we get the final URL
-                String finalUrl = response.request().url().toString();
 
-                log.debug("Final URL after redirects: {}", finalUrl);
-                return finalUrl;
+            // Create a client that does NOT follow redirects automatically
+            // This allows us to capture the Location header from the redirect response
+            OkHttpClient noRedirectClient = httpClient.newBuilder()
+                    .followRedirects(false)
+                    .followSslRedirects(false)
+                    .build();
+
+            try (Response response = noRedirectClient.newCall(request).execute()) {
+                log.debug("Redirect check - Status: {}, URL: {}", response.code(), url);
+
+                // Check if we got a redirect response (3xx status codes)
+                if (response.isRedirect()) {
+                    String location = response.header("Location");
+                    if (location != null && !location.isEmpty()) {
+                        log.info("Got redirect from Location header: {}", location);
+                        return location;
+                    } else {
+                        log.warn("Got redirect status {} but no Location header", response.code());
+                    }
+                }
+
+                // If no redirect, return the original URL
+                log.debug("No redirect found, using original URL");
+                return url;
             }
         } catch (Exception e) {
             log.warn("Error getting redirected URL: {}", e.getMessage());
