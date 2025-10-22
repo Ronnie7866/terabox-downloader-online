@@ -17,20 +17,30 @@ public class TeraBoxProperties {
     private List<String> cookies;
     
     private HttpConfig http = new HttpConfig();
-    
+
     private RetryConfig retry = new RetryConfig();
-    
+
+    private AsyncConfig async = new AsyncConfig();
+
     @Data
     public static class HttpConfig {
         private int connectTimeout = 30000;
         private int readTimeout = 60000;
         private int writeTimeout = 60000;
     }
-    
+
     @Data
     public static class RetryConfig {
         private int maxAttempts = 3;
         private long backoffDelay = 2000;
+    }
+
+    @Data
+    public static class AsyncConfig {
+        private boolean enabled = true;
+        private int corePoolSize = 10;
+        private int maxPoolSize = 50;
+        private int queueCapacity = 100;
     }
 }
 

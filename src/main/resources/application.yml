@@ -27,6 +27,13 @@ terabox:
     max-attempts: 3
     backoff-delay: 2000  # 2 seconds
 
+  # Async Configuration (for parallel processing)
+  async:
+    enabled: true           # Enable/disable async processing
+    core-pool-size: 10      # Core thread pool size
+    max-pool-size: 50       # Maximum thread pool size
+    queue-capacity: 100     # Task queue capacity
+
 # Logging Configuration
 logging:
   level:

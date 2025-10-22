@@ -16,7 +16,10 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Core service to extract data from TeraBox URLs
@@ -29,10 +32,12 @@ public class TeraBoxExtractor {
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final TeraBoxProperties properties;
-    
-    public TeraBoxExtractor(CookieManager cookieManager, TeraBoxProperties properties) {
+    private final Executor taskExecutor;
+
+    public TeraBoxExtractor(CookieManager cookieManager, TeraBoxProperties properties, Executor teraboxTaskExecutor) {
         this.cookieManager = cookieManager;
         this.properties = properties;
+        this.taskExecutor = teraboxTaskExecutor;
         this.objectMapper = new ObjectMapper();
         
         // Build OkHttp client with configured timeouts
@@ -248,8 +253,77 @@ public class TeraBoxExtractor {
         long shareId = apiResponse.path("share_id").asLong(0);
         long uk = apiResponse.path("uk").asLong(0);
 
-        // Step 4: Process files
+        // Step 4: Process files and folders in parallel
         JsonNode fileList = apiResponse.path("list");
+        List<FileItem> processedFiles = processFilesAndFoldersParallel(fileList, shorturl, uk, shareId, jsToken, logid, defaultThumbnail, cookie);
+
+        // Step 5: Build response using values from TeraBox API
+        return TeraBoxResponse.builder()
+                .errno(errno)
+                .requestId(requestId)
+                .serverTime(serverTime)
+                .cfromId(cfromId)
+                .title(title)
+                .list(processedFiles)
+                .shareId(shareId)
+                .uk(uk)
+                .build();
+    }
+
+    /**
+     * Process files and folders in parallel for maximum performance
+     */
+    private List<FileItem> processFilesAndFoldersParallel(JsonNode fileList, String shorturl, long uk, long shareId,
+                                                           String jsToken, String logid, String defaultThumbnail, String cookie) {
+        if (!properties.getAsync().isEnabled()) {
+            // Fallback to sequential processing if async is disabled
+            return processFilesAndFoldersSequential(fileList, shorturl, uk, shareId, jsToken, logid, defaultThumbnail, cookie);
+        }
+
+        try {
+            List<CompletableFuture<List<FileItem>>> futures = new ArrayList<>();
+
+            // Create async tasks for each file/folder
+            fileList.forEach(fileNode -> {
+                CompletableFuture<List<FileItem>> future = CompletableFuture.supplyAsync(() -> {
+                    if (fileNode.path("isdir").asText().equals("1")) {
+                        // It's a folder - process recursively
+                        return processFolder(fileNode, shorturl, uk, shareId, jsToken, logid, defaultThumbnail, cookie);
+                    } else {
+                        // It's a file - process it
+                        FileItem fileItem = processFile(fileNode, uk, shareId, jsToken, defaultThumbnail, cookie);
+                        List<FileItem> result = new ArrayList<>();
+                        if (fileItem != null) {
+                            result.add(fileItem);
+                        }
+                        return result;
+                    }
+                }, taskExecutor);
+
+                futures.add(future);
+            });
+
+            // Wait for all tasks to complete and collect results
+            CompletableFuture<Void> allFutures = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+
+            return allFutures.thenApply(v ->
+                futures.stream()
+                    .map(CompletableFuture::join)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toList())
+            ).join();
+
+        } catch (Exception e) {
+            log.warn("Async processing failed, falling back to sequential: {}", e.getMessage());
+            return processFilesAndFoldersSequential(fileList, shorturl, uk, shareId, jsToken, logid, defaultThumbnail, cookie);
+        }
+    }
+
+    /**
+     * Sequential fallback for processing files and folders
+     */
+    private List<FileItem> processFilesAndFoldersSequential(JsonNode fileList, String shorturl, long uk, long shareId,
+                                                             String jsToken, String logid, String defaultThumbnail, String cookie) {
         List<FileItem> processedFiles = new ArrayList<>();
 
         for (JsonNode fileNode : fileList) {
@@ -266,17 +340,7 @@ public class TeraBoxExtractor {
             }
         }
 
-        // Step 5: Build response using values from TeraBox API
-        return TeraBoxResponse.builder()
-                .errno(errno)
-                .requestId(requestId)
-                .serverTime(serverTime)
-                .cfromId(cfromId)
-                .title(title)
-                .list(processedFiles)
-                .shareId(shareId)
-                .uk(uk)
-                .build();
+        return processedFiles;
     }
 
     /**
@@ -333,12 +397,10 @@ public class TeraBoxExtractor {
     }
 
     /**
-     * Process a folder recursively
+     * Process a folder recursively with parallel processing of contents
      */
     private List<FileItem> processFolder(JsonNode folderNode, String shorturl, long uk, long shareId,
                                          String jsToken, String logid, String defaultThumbnail, String cookie) {
-        List<FileItem> files = new ArrayList<>();
-
         try {
             String folderPath = folderNode.path("path").asText("");
             log.info("Processing folder: {}", folderPath);
@@ -346,26 +408,17 @@ public class TeraBoxExtractor {
             // Get folder contents
             List<JsonNode> folderContents = getFolderContents(shorturl, folderPath, jsToken, logid, cookie);
 
-            // Process each item in folder
-            for (JsonNode item : folderContents) {
-                if (item.path("isdir").asText().equals("1")) {
-                    // Recursive folder processing
-                    List<FileItem> subFiles = processFolder(item, shorturl, uk, shareId, jsToken, logid, defaultThumbnail, cookie);
-                    files.addAll(subFiles);
-                } else {
-                    // Process file
-                    FileItem fileItem = processFile(item, uk, shareId, jsToken, defaultThumbnail, cookie);
-                    if (fileItem != null) {
-                        files.add(fileItem);
-                    }
-                }
-            }
+            // Convert to JsonNode array for parallel processing
+            JsonNode contentsArray = objectMapper.createArrayNode();
+            folderContents.forEach(((com.fasterxml.jackson.databind.node.ArrayNode) contentsArray)::add);
+
+            // Process folder contents in parallel (same as root level)
+            return processFilesAndFoldersParallel(contentsArray, shorturl, uk, shareId, jsToken, logid, defaultThumbnail, cookie);
 
         } catch (Exception e) {
             log.error("Error processing folder: {}", e.getMessage());
+            return new ArrayList<>();
         }
-
-        return files;
     }
 
     /**
