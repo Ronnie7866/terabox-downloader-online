@@ -1,0 +1,38 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: terabox-api-sp
+
+# TeraBox API Configuration
+terabox:
+  # Array of cookies - Add your cookies here
+  cookies:
+    - "ndus=YzAY0L9peHuiooD2HIQfRKqdMaQ6ZiK1lw1-RGs4"
+    - "ndus=YdAZ0L9peHuipVO_a0gjom0pwVPAx27DYL-hryog"
+    - "ndus=Yfpi0B9peHuiKia5r7FlRJPoaaF9N9Syuaw-ikqa"
+    - "ndus=YyYm0B9peHuiBrHdNsFrn6AtTd4We26B6tNtVWCv"
+  
+  # HTTP Client Configuration
+  http:
+    connect-timeout: 30000  # 30 seconds
+    read-timeout: 60000     # 60 seconds
+    write-timeout: 60000    # 60 seconds
+  
+  # Retry Configuration
+  retry:
+    max-attempts: 3
+    backoff-delay: 2000  # 2 seconds
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.terabox.api: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
