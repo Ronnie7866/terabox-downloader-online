@@ -85,10 +85,24 @@ public class TeraBoxExtractor {
     }
     
     /**
-     * Get redirected URL by checking Location header from HTTP redirect response
+     * Get final redirected URL by following all redirects recursively
+     * Handles double redirects: terasharefile.com -> www.terabox.app -> dm.terabox.app
      * Uses full cookie string to match browser behavior
      */
     private String getRedirectedUrl(String url) {
+        return getRedirectedUrlRecursive(url, 0, 5); // Max 5 redirects to prevent infinite loops
+    }
+
+    /**
+     * Recursively follow redirects until we reach the final URL
+     */
+    private String getRedirectedUrlRecursive(String url, int depth, int maxDepth) {
+        // Prevent infinite redirect loops
+        if (depth >= maxDepth) {
+            log.warn("Max redirect depth ({}) reached, stopping at: {}", maxDepth, url);
+            return url;
+        }
+
         try {
             // Get a random cookie from the pool
             String cookie = cookieManager.getRandomCookie();
@@ -120,26 +134,28 @@ public class TeraBoxExtractor {
                     .build();
 
             try (Response response = noRedirectClient.newCall(request).execute()) {
-                log.debug("Redirect check - Status: {}, URL: {}", response.code(), url);
+                log.debug("Redirect check [depth={}] - Status: {}, URL: {}", depth, response.code(), url);
 
                 // Check if we got a redirect response (3xx status codes)
                 if (response.isRedirect()) {
                     String location = response.header("Location");
                     if (location != null && !location.isEmpty()) {
-                        log.info("Got redirect from Location header: {}", location);
-                        return location;
+                        log.info("Redirect [depth={}]: {} -> {}", depth, url, location);
+
+                        // Recursively follow the next redirect
+                        return getRedirectedUrlRecursive(location, depth + 1, maxDepth);
                     } else {
                         log.warn("Got redirect status {} but no Location header", response.code());
                     }
                 }
 
-                // If no redirect, return the original URL
-                log.debug("No redirect found, using original URL");
+                // If no redirect, we've reached the final URL
+                log.info("Final URL after {} redirect(s): {}", depth, url);
                 return url;
             }
         } catch (Exception e) {
-            log.warn("Error getting redirected URL: {}", e.getMessage());
-            return url; // Return original URL if redirect fails
+            log.warn("Error getting redirected URL at depth {}: {}", depth, e.getMessage());
+            return url; // Return current URL if redirect fails
         }
     }
     

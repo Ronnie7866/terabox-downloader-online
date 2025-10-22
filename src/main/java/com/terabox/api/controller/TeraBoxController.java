@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/v2")
 @RequiredArgsConstructor
 public class TeraBoxController {
     
@@ -30,7 +30,7 @@ public class TeraBoxController {
      * 
      * Returns: Official TeraBox API response structure
      */
-    @PostMapping("/terabox")
+    @PostMapping("/api")
     public ResponseEntity<?> processTeraBoxUrl(@RequestBody TeraBoxRequest request) {
         long startTime = System.currentTimeMillis();
         
