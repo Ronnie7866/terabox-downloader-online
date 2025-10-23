@@ -12,6 +12,8 @@ import okhttp3.*;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -33,6 +36,7 @@ public class TeraBoxExtractor {
     private final ObjectMapper objectMapper;
     private final TeraBoxProperties properties;
     private final Executor taskExecutor;
+    private final AtomicInteger proxyPortCounter = new AtomicInteger(0);
 
     public TeraBoxExtractor(CookieManager cookieManager, TeraBoxProperties properties, Executor teraboxTaskExecutor) {
         this.cookieManager = cookieManager;
@@ -194,7 +198,7 @@ public class TeraBoxExtractor {
         // Get random cookie
         String cookie = cookieManager.getRandomCookie();
         
-        // Step 1: Get HTML page to extract tokens
+        // Step 1: Get HTML page to extract tokens (with proxy)
         Request pageRequest = new Request.Builder()
                 .url(url)
                 .header("Cookie", cookie)
@@ -205,7 +209,10 @@ public class TeraBoxExtractor {
         String htmlContent;
         String redirectUrl;
         
-        try (Response response = httpClient.newCall(pageRequest).execute()) {
+        // Use proxy client for TeraBox page fetching
+        OkHttpClient clientToUse = getProxyClient();
+        
+        try (Response response = clientToUse.newCall(pageRequest).execute()) {
             if (!response.isSuccessful()) {
                 throw new IOException("Failed to fetch page: HTTP " + response.code());
             }
@@ -539,6 +546,48 @@ public class TeraBoxExtractor {
         } catch (Exception e) {
             log.error("Error constructing stream URL: {}", e.getMessage());
             return "";
+        }
+    }
+
+    /**
+     * Get proxy client for TeraBox page fetching with port rotation
+     */
+    private OkHttpClient getProxyClient() {
+        if (!properties.getProxy().isEnabled()) {
+            return httpClient;
+        }
+
+        try {
+            // Calculate next port in rotation
+            int portRange = properties.getProxy().getEndPort() - properties.getProxy().getStartPort() + 1;
+            int portIndex = proxyPortCounter.getAndIncrement() % portRange;
+            int port = properties.getProxy().getStartPort() + portIndex;
+            
+            log.debug("Using proxy port: {}", port);
+
+            // Create proxy
+            Proxy proxy = new Proxy(Proxy.Type.HTTP, 
+                new InetSocketAddress(properties.getProxy().getHost(), port));
+
+            // Create authenticator for proxy
+            Authenticator proxyAuthenticator = (route, response) -> {
+                String credential = Credentials.basic(
+                    properties.getProxy().getUsername(), 
+                    properties.getProxy().getPassword());
+                return response.request().newBuilder()
+                    .header("Proxy-Authorization", credential)
+                    .build();
+            };
+
+            // Build client with proxy
+            return httpClient.newBuilder()
+                .proxy(proxy)
+                .proxyAuthenticator(proxyAuthenticator)
+                .build();
+
+        } catch (Exception e) {
+            log.warn("Failed to create proxy client: {}, using default client", e.getMessage());
+            return httpClient;
         }
     }
 }

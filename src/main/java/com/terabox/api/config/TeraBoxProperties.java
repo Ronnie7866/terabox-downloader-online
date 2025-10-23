@@ -22,6 +22,8 @@ public class TeraBoxProperties {
 
     private AsyncConfig async = new AsyncConfig();
 
+    private ProxyConfig proxy = new ProxyConfig();
+
     @Data
     public static class HttpConfig {
         private int connectTimeout = 30000;
@@ -41,6 +43,16 @@ public class TeraBoxProperties {
         private int corePoolSize = 10;
         private int maxPoolSize = 50;
         private int queueCapacity = 100;
+    }
+
+    @Data
+    public static class ProxyConfig {
+        private boolean enabled = false;
+        private String username;
+        private String password;
+        private String host = "dc.decodo.com";
+        private int startPort = 10001;
+        private int endPort = 10100;
     }
 }
 

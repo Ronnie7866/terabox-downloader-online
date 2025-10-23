@@ -57,6 +57,15 @@ terabox:
     max-pool-size: 50       # Maximum thread pool size
     queue-capacity: 100     # Task queue capacity
 
+  # Proxy Configuration (DC Proxy)
+  proxy:
+    enabled: true
+    username: "spyblwudx2"
+    password: "w3BhL6lhGc~mnP3dc1"
+    host: "dc.decodo.com"
+    start-port: 10001
+    end-port: 10100
+
 # Logging Configuration
 logging:
   level:
