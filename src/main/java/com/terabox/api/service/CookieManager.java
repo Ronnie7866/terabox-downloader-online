@@ -22,7 +22,7 @@ public class CookieManager {
         this.random = new Random();
         
         if (cookies == null || cookies.isEmpty()) {
-            log.warn("No cookies configured! Please add cookies in application.yml");
+            log.warn("No cookies configured! Please add cookies in application.properties");
         } else {
             log.info("Initialized CookieManager with {} cookies", cookies.size());
         }

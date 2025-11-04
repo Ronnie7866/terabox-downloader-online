@@ -31,15 +31,15 @@ import java.util.stream.Collectors;
 @Service
 public class TeraBoxExtractor {
     
-    private final CookieManager cookieManager;
+    private final GithubCookieManager gitHubCookieManager;
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final TeraBoxProperties properties;
     private final Executor taskExecutor;
     private final AtomicInteger proxyPortCounter = new AtomicInteger(0);
 
-    public TeraBoxExtractor(CookieManager cookieManager, TeraBoxProperties properties, Executor teraboxTaskExecutor) {
-        this.cookieManager = cookieManager;
+    public TeraBoxExtractor(GithubCookieManager gitHubCookieManager, TeraBoxProperties properties, Executor teraboxTaskExecutor) {
+        this.gitHubCookieManager = gitHubCookieManager;
         this.properties = properties;
         this.taskExecutor = teraboxTaskExecutor;
         this.objectMapper = new ObjectMapper();
@@ -109,7 +109,7 @@ public class TeraBoxExtractor {
 
         try {
             // Get a random cookie from the pool
-            String cookie = cookieManager.getRandomCookie();
+            String cookie = gitHubCookieManager.getCookie();
 
             Request request = new Request.Builder()
                     .url(url)
@@ -196,7 +196,8 @@ public class TeraBoxExtractor {
      */
     private TeraBoxResponse fetchData(String url) throws Exception {
         // Get random cookie
-        String cookie = cookieManager.getRandomCookie();
+        String cookie = gitHubCookieManager.getCookie();
+        log.info("Using cookie {}: ", cookie);
         
         // Step 1: Get HTML page to extract tokens (with proxy)
         Request pageRequest = new Request.Builder()
@@ -219,11 +220,6 @@ public class TeraBoxExtractor {
             
             htmlContent = response.body().string();
             redirectUrl = response.request().url().toString();
-            
-            // Check if we're getting a login page
-            if (htmlContent.toLowerCase().contains("login") && htmlContent.toLowerCase().contains("password")) {
-                throw new Exception("Cookie is invalid - getting login page");
-            }
         }
         
         // Step 2: Extract required tokens from HTML
@@ -236,7 +232,7 @@ public class TeraBoxExtractor {
             throw new Exception("Failed to extract required tokens (shorturl or jsToken)");
         }
         
-        log.debug("Extracted - logid: {}, jsToken: {}, shorturl: {}", logid, jsToken, shorturl);
+        log.debug("Extracted - logid: {}, jsToken: {}, shorturl: {}, defaultThumbnail: {}", logid, jsToken, shorturl, defaultThumbnail);
         
         // Step 3: Get file list from API
         String apiUrl = String.format(
