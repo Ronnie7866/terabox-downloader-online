@@ -1,3 +1,14 @@
+## Online TeraBox Downloader Tool
+
+If you just want to download files from a TeraBox link without running the API locally, you can use the online tool:
+
+👉 https://teraboxdl.site
+
+The website provides a simple interface where users can paste a TeraBox share link and generate a downloadable file directly in the browser.
+
+This repository documents the backend API logic used to extract file information from TeraBox sharing URLs.
+
+
 # TeraBox API - Spring Boot Implementation
 
 A simple and efficient Spring Boot API to extract file information from TeraBox share URLs.
