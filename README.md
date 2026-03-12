@@ -249,3 +249,16 @@ This project is provided as-is for educational purposes.
 
 For issues or questions, please check the logs for detailed error messages.
 
+## How to Download Files From TeraBox
+
+1. Copy the TeraBox sharing link
+2. Open the downloader tool
+3. Paste the link into the input field
+4. Click generate download link
+
+The tool will process the share URL and return a downloadable file.
+
+Try the live tool here:
+
+https://teraboxdl.site
+
